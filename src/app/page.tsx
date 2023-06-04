@@ -35,7 +35,17 @@ export default function Home() {
     setSearchTerm(event.target.value);
   }
 
+  async function handleSearchKeyDown(event: any) {
+    if (event.keyCode === 13) {
+      handleSearch();
+    }
+  }
+
   async function handleSearch() {
+    if (!searchTerm) {
+      return;
+    }
+
     setSearch(
       <>
         <SkeletonResultItem />
@@ -53,15 +63,19 @@ export default function Home() {
     );
 
     const responseJson = await result.json();
-    const results = responseJson.data.widgets[0].content.map((hit: any, hitId: any) => {
-      return <ResultItem item={hit} key={hitId} />
-    })
 
-    setSearch(
-      <>
-        {results}
-      </>
+    if (!responseJson?.data?.widgets[0]?.content) {
+      setSearch(<>No results found</>);
+      return;
+    }
+
+    const results = responseJson.data.widgets[0].content.map(
+      (hit: any, hitId: any) => {
+        return <ResultItem item={hit} key={hitId} />;
+      }
     );
+
+    setSearch(<>{results}</>);
   }
 
   return (
@@ -98,6 +112,7 @@ export default function Home() {
             placeholder="Search DotPeekser..."
             required
             onChange={handleSearchTerm}
+            onKeyDown={handleSearchKeyDown}
           />
           <button
             type="submit"
