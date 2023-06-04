@@ -14,6 +14,7 @@ const query = `{
                 "search": {
                     "content": {},
                     "limit": 3,
+                    "offset": {{offset}},
                     "query": {
                         "keyphrase": "{{searchTerm}}"
                     }
@@ -28,8 +29,13 @@ let endpointUrl = process.env.SITECORE_DISCOVERY_API_URI as string;
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const term = searchParams.get("term") ?? "";
-  const termQuery = query.replace("{{searchTerm}}", term);
+  const term = searchParams.get("term") ?? "";  
+  let termQuery = query.replace("{{searchTerm}}", term);
+
+  const offset = searchParams.get("offset") ?? "0";
+  if(offset) {
+    termQuery = termQuery.replace("{{offset}}", offset);
+  }
 
   const response: Response = await fetch(endpointUrl, {
     method: "POST",
