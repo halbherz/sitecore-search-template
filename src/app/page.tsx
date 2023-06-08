@@ -1,202 +1,235 @@
 "use client";
 
-import React, { useState } from "react";
-import SkeletonResultItem from "./components/search/skeletonResultItem";
+import {
+  useRef,
+  useState,
+  MouseEvent,
+  KeyboardEvent,
+  useEffect,
+  ChangeEvent,
+} from "react";
 import ResultItem from "./components/search/resultItem";
-import { useRouter } from 'next/navigation';
 
-export default function Home() {
-  const [searchResults, setSearch] = useState(<></>);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [loadMore, setLoadMore] = useState("hidden");
-  const [loadMoreIsLoading, setLoadMoreIsLoading] = useState(<></>);
-  const [offset, setOffset] = useState(3);
+type SearchState = {
+  term: string;
+  filter: Filter[] | undefined;
+  offset: number;
+};
 
-  const router = useRouter();
+type Filter = {
+  name: string;
+  value: string[];
+};
 
-  async function handleSearchTerm(event: any) {
-    setSearchTerm(event.target.value);
-  }
+type SearchResults = {
+  hits: any[];
+  facets: any[];
+  total: number;
+};
 
-  async function handleSearchKeyDown(event: any) {
-    if (event.keyCode === 13) {
-      handleSearch();
-    }
-  }
+export default function Page() {
+  const [searchState, setSearchState] = useState<SearchState>();
+  const [searchResults, setSearchResults] = useState<SearchResults>();
+  const searchInput = useRef<HTMLInputElement>(null);
 
-  async function handleLoadMore() {
-    setLoadMoreIsLoading(
-      <>
-        <span className="px-5 py-2.5">
-          <svg
-            aria-hidden="true"
-            role="status"
-            className="inline w-4 h-4 mr-3 text-white animate-spin"
-            viewBox="0 0 100 101"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z"
-              fill="#E5E7EB"
-            />
-            <path
-              d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z"
-              fill="currentColor"
-            />
-          </svg>
-          Loading...
-        </span>
-      </>
-    );
+  function SetSearchState(): void {
+    const searchTerm = searchInput.current?.value ?? "";
 
-    router.push(`?term=${searchTerm}&offset=${offset}`);
-
-    const result = await fetch(
-      `http://localhost:3000/api/search/discover?term=${searchTerm}&offset=${offset}`,
-      {
-        method: "GET",
-        cache: "no-cache",
-      }
-    );
-
-    const responseJson = await result.json();
-    const widget = responseJson?.data?.widgets[0];
-
-    if (!widget?.content) {
-      setSearch(<>No more results found</>);
-      return;
-    }
-
-    if (widget.total_item <= widget.limit + widget.offset) {
-      setLoadMore("hidden");
-    }
-
-    const results = widget.content.map((hit: any, hitId: any) => {
-      return <ResultItem item={hit} key={hitId} />;
+    setSearchState({
+      term: searchTerm,
+      offset: 0,
+      filter: undefined,
     });
-
-    setOffset(offset + 3);
-
-    setLoadMoreIsLoading(
-      <>
-        <span className="relative px-5 py-2.5 transition-all ease-in duration-75 bg-white dark:bg-gray-900 rounded-md group-hover:bg-opacity-0">
-          Load more
-        </span>
-      </>
-    );
-
-    setSearch(
-      <>
-        {searchResults}
-        {results}
-      </>
-    );
   }
 
-  async function handleSearch() {
-    if (!searchTerm) {
+  function handleSearchButtonOnClick(
+    event: MouseEvent<HTMLButtonElement, MouseEvent>
+  ): void {
+    SetSearchState();
+  }
+
+  function handleSearchInputKeyUp(
+    event: KeyboardEvent<HTMLInputElement>
+  ): void {
+    if (event.code === "Enter") {
+      SetSearchState();
+    }
+  }
+
+  function handleFilterOnChange(event: ChangeEvent<HTMLInputElement>): void {
+    const key = event.currentTarget.getAttribute("facet-group");
+    const value = event.target.value;
+    
+    if(!key) {
       return;
     }
 
-    router.push(`?term=${searchTerm}`);
+    let newFilterValue: Filter[];
+    let existingFilter: any;
+    if (searchState?.filter) {
+      newFilterValue = searchState?.filter;
+      existingFilter = newFilterValue?.find((x) => x.name === key);
+    } else {
+      newFilterValue = [];
+    }
 
-    setSearch(
-      <>
-        <SkeletonResultItem />
-        <SkeletonResultItem />
-        <SkeletonResultItem />
-      </>
-    );
-
-    const result = await fetch(
-      `http://localhost:3000/api/search/discover?term=${searchTerm}`,
-      {
-        method: "GET",
-        cache: "no-cache",
+    if (existingFilter) {
+      if (!existingFilter.value.find((x: string) => x === value)) {
+        existingFilter.value = [...existingFilter.value, value];
+      } else {
+        const valueIndex = existingFilter.value.indexOf(value);
+        existingFilter.value.splice(valueIndex, 1);
       }
-    );
+    } else {
+      newFilterValue.push({
+        name: key,
+        value: [value],
+      });
+    }
 
-    const responseJson = await result.json();
-    const widget = responseJson?.data?.widgets[0];
+    console.log(newFilterValue);
 
-    if (!widget?.content) {
-      setSearch(<>No results found</>);
+    setSearchState({
+      offset: 0,
+      filter: newFilterValue,
+      term: searchState?.term ?? "",
+    });
+  }
+
+  async function GetResults() {
+    if (!searchState?.term) {
       return;
     }
 
-    if (widget.total_item > widget.limit + widget.offset) {
-      setLoadMoreIsLoading(
-        <>
+    let filterString = "";
+    searchState?.filter?.map(filterGroup => {
+      if(filterString) {
+        filterString += "|";
+      }
+      
+      if(filterGroup.value.length >= 0) {
+        filterString += `${filterGroup.name}:${filterGroup.value.join()}`;
+      }
+    })
+
+    const searchRequestUrl = `http://localhost:3000/api/search/discover?term=${searchState?.term}&offset=${searchState?.offset}&filter=${filterString}`;
+
+    const response = await fetch(searchRequestUrl);
+    const results = await response.json();
+
+    console.log(results.data);
+    const resultWidget = results?.data?.widgets[0];
+
+    setSearchResults({
+      hits: resultWidget.content,
+      total: resultWidget.total_item,
+      facets: resultWidget.facet,
+    });
+  }
+
+  useEffect(() => {
+    if (searchState?.term) {
+      console.log(searchState?.term);
+      GetResults();
+    }
+  }, [searchState]);
+
+  return (
+    <>
+      <main className="flex min-h-screen flex-col items-center p-24">
+        <div className="w-full mb-8">
+          <label
+            htmlFor="default-search"
+            className="mb-2 text-sm font-medium text-gray-900 sr-only dark:text-white"
+          >
+            Search
+          </label>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+              <svg
+                aria-hidden="true"
+                className="w-5 h-5 text-gray-500 dark:text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                ></path>
+              </svg>
+            </div>
+            <input
+              ref={searchInput}
+              type="search"
+              id="default-search"
+              className="block w-full p-4 pl-10 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
+              placeholder="Search DotPeekser..."
+              required
+              onKeyUp={handleSearchInputKeyUp}
+            />
+            <button
+              type="submit"
+              className="text-white absolute right-2.5 bottom-2.5 bg-search-primary-500 hover:bg-search-primary-600 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-4 py-2 dark:bg-search-primary-400 dark:hover:bg-search-primary-500 dark:focus:ring-search-primary-600"
+              onClick={handleSearchButtonOnClick}
+            >
+              Search
+            </button>
+          </div>
+        </div>
+        <div className="flex w-full gap-8 pb-8">
+          {searchResults?.facets?.map((facetGroup, key) => {
+            return (
+              <div className="" key={key}>
+                <h3 className="mb-5 text-lg font-medium capitalize text-gray-900 dark:text-white">
+                  {facetGroup?.name}
+                </h3>
+                <ul className="flex w-full gap-6">
+                  {facetGroup?.value?.map((facet: any, key: any) => {
+                    return (
+                      <li key={key}>
+                        <input
+                          facet-group={facetGroup?.name}
+                          type="checkbox"
+                          id={facet?.text}
+                          value={facet?.text}
+                          className="hidden peer"
+                          onChange={handleFilterOnChange}
+                        />
+                        <label
+                          htmlFor={facet?.text}
+                          className="inline-flex items-center justify-between w-full px-4 py-2 text-gray-500 bg-white border-2 border-gray-200 rounded-lg cursor-pointer dark:hover:text-gray-300 dark:border-gray-700 peer-checked:border-blue-600 hover:text-gray-600 dark:peer-checked:text-gray-300 peer-checked:text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:bg-gray-800 dark:hover:bg-gray-700"
+                        >
+                          <div className="block">
+                            <div className="font-semibold">
+                              {facet?.text} ({facet?.count})
+                            </div>
+                          </div>
+                        </label>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            );
+          })}
+        </div>
+        <div className="grid grid-cols-3 gap-4 w-full items-stretch">
+          {searchResults?.hits?.map((hit: any, key: any) => {
+            return <ResultItem item={hit} key={key} />;
+          })}
+        </div>
+        <button
+          className={`mt-8 relative inline-flex items-center justify-center p-0.5 mb-2 mr-2 overflow-hidden text-sm font-medium text-gray-900 rounded-lg group bg-gradient-to-br from-purple-600 to-blue-500 group-hover:from-purple-600 group-hover:to-blue-500 hover:text-white dark:text-white focus:ring-4 focus:outline-none focus:ring-blue-300 dark:focus:ring-blue-800`}
+        >
           <span className="relative px-5 py-2.5 transition-all ease-in duration-75 bg-white dark:bg-gray-900 rounded-md group-hover:bg-opacity-0">
             Load more
           </span>
-        </>
-      );
-
-      setLoadMore("block");
-    }
-
-    const results = widget.content.map((hit: any, hitId: any) => {
-      return <ResultItem item={hit} key={hitId} />;
-    });
-
-    setSearch(<>{results}</>);
-  }
-
-  return (
-    <main className="flex min-h-screen flex-col items-center p-24">
-      <div className="w-full mb-8">
-        <label
-          htmlFor="default-search"
-          className="mb-2 text-sm font-medium text-gray-900 sr-only dark:text-white"
-        >
-          Search
-        </label>
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-            <svg
-              aria-hidden="true"
-              className="w-5 h-5 text-gray-500 dark:text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              ></path>
-            </svg>
-          </div>
-          <input
-            type="search"
-            id="default-search"
-            className="block w-full p-4 pl-10 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-            placeholder="Search DotPeekser..."
-            required
-            onChange={handleSearchTerm}
-            onKeyDown={handleSearchKeyDown}
-          />
-          <button
-            type="submit"
-            className="text-white absolute right-2.5 bottom-2.5 bg-search-primary-500 hover:bg-search-primary-600 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-4 py-2 dark:bg-search-primary-400 dark:hover:bg-search-primary-500 dark:focus:ring-search-primary-600"
-            onClick={handleSearch}
-          >
-            Search
-          </button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-3 gap-4 w-full items-stretch">{searchResults}</div>
-      <button
-        className={`${loadMore} mt-8 relative inline-flex items-center justify-center p-0.5 mb-2 mr-2 overflow-hidden text-sm font-medium text-gray-900 rounded-lg group bg-gradient-to-br from-purple-600 to-blue-500 group-hover:from-purple-600 group-hover:to-blue-500 hover:text-white dark:text-white focus:ring-4 focus:outline-none focus:ring-blue-300 dark:focus:ring-blue-800`}
-        onClick={handleLoadMore}
-      >
-        {loadMoreIsLoading}
-      </button>
-    </main>
+        </button>
+      </main>
+    </>
   );
 }
